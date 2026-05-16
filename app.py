@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS pagamentos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     aluno_id INTEGER,
     data_pagamento TEXT,
-    proximo_vencimento TEXT
+    proximo_vencimento TEXT,
+    valor REAL
 )
 """)
 
@@ -82,8 +83,56 @@ st.markdown("---")
 # TELA DE LOGIN
 if "logado" not in st.session_state:
     st.session_state.logado = False
+st.markdown(
+    "<h1 style='text-align: center;'>Sistema de Gestão</h1>",
+    unsafe_allow_html=True
+)
 if not st.session_state.logado:
-    st.title("🔐 Login do Sistema")
+
+    st.markdown("""
+    <style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+    }
+
+    .login-box {
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        box-shadow: 0px 10px 30px rgba(0,0,0,0.1);
+        width: 350px;
+    }
+
+    .login-title {
+        text-align: center;
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+
+    .stTextInput input {
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    .stButton button {
+        background: linear-gradient(90deg, #4CAF50, #2e7d32);
+        color: white;
+        border-radius: 10px;
+        height: 45px;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+
+    st.markdown('<div class="login-title">🏋️ Login da Academia</div>',
+                unsafe_allow_html=True)
 
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
@@ -97,10 +146,13 @@ if not st.session_state.logado:
 
         if user:
             st.session_state.logado = True
-            st.success("Login realizado com sucesso!")
+            st.success("Login realizado!")
             st.rerun()
         else:
             st.error("Usuário ou senha incorretos")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()
 # MENU
@@ -123,20 +175,35 @@ if menu == "Dashboard":
     pagamentos_df = pd.read_sql("SELECT * FROM pagamentos", conn)
 
     total_alunos = len(alunos_df)
-    total_pagamentos = len(pagamentos_df)
+    pagamentos_df["data_pagamento"] = pd.to_datetime(
+        pagamentos_df["data_pagamento"]
+    )
+
+    mes_atual = datetime.now().month
+    ano_atual = datetime.now().year
+
+    pagamentos_mes = pagamentos_df[
+        (pagamentos_df["data_pagamento"].dt.month == mes_atual) &
+        (pagamentos_df["data_pagamento"].dt.year == ano_atual)
+    ]
+
+    receita_mes = pagamentos_mes["valor"].sum()
 
     hoje = datetime.now()
     inadimplentes = 0
 
     for _, row in pagamentos_df.iterrows():
-        vencimento = datetime.strptime(row["proximo_vencimento"], "%Y-%m-%d")
+        vencimento = pd.to_datetime(row["proximo_vencimento"])
         if vencimento < hoje:
             inadimplentes += 1
 
     col1, col2, col3 = st.columns(3)
 
     col1.metric("👥 Alunos", total_alunos)
-    col2.metric("💰 Pagamentos", total_pagamentos)
+    col2.metric(
+        "💰 Receita do mês",
+        f"R$ {receita_mes:.2f}"
+    )
     col3.metric("⚠️ Inadimplentes", inadimplentes)
 
 # CADASTRO
@@ -167,18 +234,20 @@ elif menu == "Registrar Pagamento":
     if not alunos.empty:
         aluno_nome = st.selectbox("Aluno", alunos["nome"])
         aluno_id = alunos[alunos["nome"] == aluno_nome]["id"].values[0]
+        valor = st.number_input("Valor Pago", min_value=0.0, value=100.0)
 
         if st.button("Registrar pagamento"):
             hoje = datetime.now()
             proximo = hoje + timedelta(days=30)
 
             cursor.execute("""
-                INSERT INTO pagamentos (aluno_id, data_pagamento, proximo_vencimento)
-                VALUES (?, ?, ?)
+                INSERT INTO pagamentos (aluno_id, data_pagamento, proximo_vencimento, valor)
+                VALUES (?, ?, ?, ?)
                 """, (
                 int(aluno_id),
                 hoje.strftime("%Y-%m-%d"),
-                proximo.strftime("%Y-%m-%d")
+                proximo.strftime("%Y-%m-%d"),
+                valor
             ))
 
             conn.commit()
@@ -186,6 +255,7 @@ elif menu == "Registrar Pagamento":
                 f"Pagamento registrado! Próximo vencimento: {proximo.strftime('%d/%m/%Y')}")
     else:
         st.warning("Nenhum aluno cadastrado.")
+
 
 # LISTA
 elif menu == "Ver Alunos":
