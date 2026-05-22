@@ -1,4 +1,4 @@
-
+import bcrypt
 import urllib.parse
 import pandas as pd
 from datetime import datetime, timedelta
@@ -14,12 +14,14 @@ def gerar_link_whatsapp(telefone, mensagem):
 
 
 # CONFIGURAÇÃO DA PÁGINA
+
 st.set_page_config(
     page_title="Sistema de Academia",
     page_icon="🏋️",
     layout="wide"
 )
 # ESTILO CUSTOMIZADO (CSS)
+
 st.markdown("""
 <style>
 .main {
@@ -39,7 +41,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # BANCO
-conn = sqlite3.connect("academia.db", check_same_thread=False)
+
+
+def get_connection():
+    return sqlite3.connect("academia.db", check_same_thread=False)
+
+
+conn = get_connection()
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -62,7 +70,9 @@ CREATE TABLE IF NOT EXISTS pagamentos (
 """)
 
 conn.commit()
+
 # BANCO LOGIN
+
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,16 +81,32 @@ CREATE TABLE IF NOT EXISTS usuarios (
 )
 """)
 conn.commit()
-cursor.execute("SELECT * FROM usuarios WHERE username = ?", ("admin",))
+cursor.execute(
+    "SELECT * FROM usuarios WHERE username = ?",
+    ("admin",)
+)
+
 if cursor.fetchone() is None:
+
+    senha_hash = bcrypt.hashpw(
+        "1234".encode('utf-8'),
+        bcrypt.gensalt()
+    )
+
     cursor.execute(
-        "INSERT INTO usuarios (username, senha) VALUES (?, ?)", ("admin", "1234"))
+        "INSERT INTO usuarios (username, senha) VALUES (?, ?)",
+        ("admin", senha_hash)
+    )
+
     conn.commit()
 
 # TÍTULO
+
 st.title("🏋️ Sistema de Gestão de Academia")
 st.markdown("---")
+
 # TELA DE LOGIN
+
 if "logado" not in st.session_state:
     st.session_state.logado = False
 st.markdown(
@@ -139,23 +165,30 @@ if not st.session_state.logado:
 
     if st.button("Entrar"):
         cursor.execute(
-            "SELECT * FROM usuarios WHERE username = ? AND senha = ?",
-            (usuario, senha)
+            "SELECT * FROM usuarios WHERE username = ?",
+            (usuario,)
         )
+
         user = cursor.fetchone()
 
-        if user:
+        if user and bcrypt.checkpw(
+            senha.encode('utf-8'),
+            user[2]
+        ):
             st.session_state.logado = True
             st.success("Login realizado!")
             st.rerun()
+
         else:
             st.error("Usuário ou senha incorretos")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()
+
 # MENU
+
 menu = st.sidebar.radio("Menu", [
     "Dashboard",
     "Cadastrar Aluno",
@@ -163,11 +196,15 @@ menu = st.sidebar.radio("Menu", [
     "Ver Alunos",
     "Inadimplentes"
 ])
+
 # BOTÃO DE LOGOUT
+
 if st.sidebar.button("🚪 Sair"):
     st.session_state.logado = False
     st.rerun()
+
 # DASHBOARD
+
 if menu == "Dashboard":
     st.subheader("📊 Visão Geral")
 
@@ -207,6 +244,7 @@ if menu == "Dashboard":
     col3.metric("⚠️ Inadimplentes", inadimplentes)
 
 # CADASTRO
+
 elif menu == "Cadastrar Aluno":
     st.subheader("➕ Novo Aluno")
 
@@ -217,15 +255,19 @@ elif menu == "Cadastrar Aluno":
         submit = st.form_submit_button("Cadastrar")
 
         if submit:
-            data_inscricao = datetime.now().strftime("%Y-%m-%d")
-            cursor.execute(
-                "INSERT INTO alunos (nome, telefone, data_inscricao) VALUES (?, ?, ?)",
-                (nome, telefone, data_inscricao)
-            )
-            conn.commit()
-            st.success("Aluno cadastrado com sucesso!")
+            if not nome or not telefone:
+                st.warning("Preencha todos os campos!")
+            else:
+                data_inscricao = datetime.now().strftime("%Y-%m-%d")
+                cursor.execute(
+                    "INSERT INTO alunos (nome, telefone, data_inscricao) VALUES (?, ?, ?)",
+                    (nome, telefone, data_inscricao)
+                )
+                conn.commit()
+                st.success("Aluno cadastrado com sucesso!")
 
 # PAGAMENTO
+
 elif menu == "Registrar Pagamento":
     st.subheader("💳 Registrar Pagamento")
 
@@ -234,16 +276,26 @@ elif menu == "Registrar Pagamento":
     if not alunos.empty:
         aluno_nome = st.selectbox("Aluno", alunos["nome"])
         aluno_id = alunos[alunos["nome"] == aluno_nome]["id"].values[0]
-        valor = st.number_input("Valor Pago", min_value=0.0, value=100.0)
+
+        valor = st.number_input(
+            "Valor Pago",
+            min_value=0.0,
+            value=100.0
+        )
 
         if st.button("Registrar pagamento"):
             hoje = datetime.now()
             proximo = hoje + timedelta(days=30)
 
             cursor.execute("""
-                INSERT INTO pagamentos (aluno_id, data_pagamento, proximo_vencimento, valor)
+                INSERT INTO pagamentos (
+                    aluno_id,
+                    data_pagamento,
+                    proximo_vencimento,
+                    valor
+                )
                 VALUES (?, ?, ?, ?)
-                """, (
+            """, (
                 int(aluno_id),
                 hoje.strftime("%Y-%m-%d"),
                 proximo.strftime("%Y-%m-%d"),
@@ -251,13 +303,17 @@ elif menu == "Registrar Pagamento":
             ))
 
             conn.commit()
+
             st.success(
-                f"Pagamento registrado! Próximo vencimento: {proximo.strftime('%d/%m/%Y')}")
+                f"Pagamento registrado! Próximo vencimento: {proximo.strftime('%d/%m/%Y')}"
+            )
+
     else:
         st.warning("Nenhum aluno cadastrado.")
 
 
 # LISTA
+
 elif menu == "Ver Alunos":
     st.subheader("📋 Lista de Alunos")
 
@@ -285,6 +341,7 @@ elif menu == "Inadimplentes":
         venc = row["vencimento"]
 
         # 📌 Caso nunca tenha pago
+
         if pd.isna(venc):
             mensagem = f"Olá {nome}, você ainda não possui pagamento registrado. Regularize sua mensalidade 😉"
             link = gerar_link_whatsapp(telefone, mensagem)
@@ -295,6 +352,7 @@ elif menu == "Inadimplentes":
             continue
 
         # 📌 Converter data com segurança
+
         try:
             vencimento = datetime.strptime(str(venc), "%Y-%m-%d")
         except:
@@ -304,6 +362,7 @@ elif menu == "Inadimplentes":
         dias_restantes = (vencimento - hoje).days
 
         # 🔴 Atrasado
+
         if vencimento < hoje:
             mensagem = f"Olá {nome}, sua mensalidade está vencida desde {vencimento.strftime('%d/%m/%Y')}. Regularize por favor 😉"
             link = gerar_link_whatsapp(telefone, mensagem)
@@ -313,6 +372,7 @@ elif menu == "Inadimplentes":
             st.link_button("📩 Cobrar no WhatsApp", link)
 
         # 🟡 Vence em breve
+
         elif dias_restantes <= 5:
             mensagem = f"Olá {nome}, sua mensalidade vence em {dias_restantes} dias. Fique atento 😉"
             link = gerar_link_whatsapp(telefone, mensagem)
@@ -321,6 +381,7 @@ elif menu == "Inadimplentes":
             st.link_button("📩 Lembrar no WhatsApp", link)
 
         # 🟢 Em dia
+
         else:
             st.success(f"🟢 {nome} - Em dia (vence em {dias_restantes} dias)")
 
