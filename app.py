@@ -366,6 +366,10 @@ elif menu == "Ver Alunos":
             # EXCLUIR
             if excluir:
                 cursor.execute(
+                    "DELETE FROM pagamentos WHERE aluno_id = ?",
+                    (int(aluno["id"]),)
+                )
+                cursor.execute(
                     "DELETE FROM alunos WHERE id = ?",
                     (int(aluno["id"]),)
                 )
@@ -415,6 +419,7 @@ elif menu == "Histórico de Pagamentos":
             col1, col2 = st.columns(2)
             col1.metric("💰 Total pago", f"R$ {total_pago:.2f}")
             col2.metric("📅 Pagamentos realizados", total_pagamentos)
+
 # INADIMPLENTES
 
 elif menu == "Inadimplentes":
