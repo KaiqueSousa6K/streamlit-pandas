@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import sqlite3
 import streamlit as st
-st.cache_data.clear()
 
 
 def gerar_link_whatsapp(telefone, mensagem):
@@ -194,6 +193,7 @@ menu = st.sidebar.radio("Menu", [
     "Cadastrar Aluno",
     "Registrar Pagamento",
     "Ver Alunos",
+    "Histórico de Pagamentos",
     "Inadimplentes"
 ])
 
@@ -314,12 +314,107 @@ elif menu == "Registrar Pagamento":
 
 # LISTA
 
+# LISTA
 elif menu == "Ver Alunos":
-    st.subheader("📋 Lista de Alunos")
+    st.subheader("Lista de Alunos")
 
     df = pd.read_sql("SELECT * FROM alunos", conn)
-    st.dataframe(df, use_container_width=True)
 
+    aba1, aba2 = st.tabs(["Lista", "✏️ Editar / Excluir"])
+
+    # ABA 1 — lista simples
+    with aba1:
+        st.dataframe(df, use_container_width=True)
+
+    # ABA 2 — editar e excluir
+    with aba2:
+        if df.empty:
+            st.warning("Nenhum aluno cadastrado.")
+        else:
+            # Selectbox com os nomes dos alunos
+            aluno_nome = st.selectbox("Selecione o aluno", df["nome"])
+
+            # Busca os dados atuais do aluno selecionado
+            aluno = df[df["nome"] == aluno_nome].iloc[0]
+
+            st.markdown("#### Dados atuais")
+
+            # Formulário já preenchido com os dados do aluno
+            with st.form("form_editar"):
+                novo_nome = st.text_input("Nome", value=aluno["nome"])
+                novo_telefone = st.text_input(
+                    "Telefone", value=aluno["telefone"])
+
+                col1, col2 = st.columns(2)
+
+                salvar = col1.form_submit_button("💾 Salvar alterações")
+                excluir = col2.form_submit_button("🗑️ Excluir aluno")
+
+            # SALVAR
+            if salvar:
+                if not novo_nome or not novo_telefone:
+                    st.warning("Preencha todos os campos!")
+                else:
+                    cursor.execute(
+                        "UPDATE alunos SET nome = ?, telefone = ? WHERE id = ?",
+                        (novo_nome, novo_telefone, int(aluno["id"]))
+                    )
+                    conn.commit()
+                    st.success(f"Aluno '{novo_nome}' atualizado com sucesso!")
+                    st.rerun()
+
+            # EXCLUIR
+            if excluir:
+                cursor.execute(
+                    "DELETE FROM alunos WHERE id = ?",
+                    (int(aluno["id"]),)
+                )
+                conn.commit()
+                st.success(f"Aluno '{aluno_nome}' excluído com sucesso!")
+                st.rerun()
+
+# HISTÓRICO DE PAGAMENTOS
+elif menu == "Histórico de Pagamentos":
+    st.subheader("📜 Histórico de Pagamentos")
+
+    alunos = pd.read_sql("SELECT * FROM alunos", conn)
+
+    if alunos.empty:
+        st.warning("Nenhum aluno cadastrado.")
+    else:
+        # Selectbox pra escolher o aluno
+        aluno_nome = st.selectbox("Selecione o aluno", alunos["nome"])
+        aluno_id = alunos[alunos["nome"] == aluno_nome]["id"].values[0]
+
+        # Busca os pagamentos daquele aluno específico
+        query = """
+        SELECT
+            data_pagamento AS "Data do Pagamento",
+            proximo_vencimento AS "Próximo Vencimento",
+            valor AS "Valor (R$)"
+        FROM pagamentos
+        WHERE aluno_id = ?
+        ORDER BY data_pagamento DESC
+        """
+
+        historico = pd.read_sql(query, conn, params=(int(aluno_id),))
+
+        if historico.empty:
+            st.warning(
+                f"{aluno_nome} ainda não possui pagamentos registrados.")
+        else:
+            # Tabela com o histórico
+            st.dataframe(historico, use_container_width=True)
+
+            st.markdown("---")
+
+            # Resumo financeiro
+            total_pago = historico["Valor (R$)"].sum()
+            total_pagamentos = len(historico)
+
+            col1, col2 = st.columns(2)
+            col1.metric("💰 Total pago", f"R$ {total_pago:.2f}")
+            col2.metric("📅 Pagamentos realizados", total_pagamentos)
 # INADIMPLENTES
 
 elif menu == "Inadimplentes":
