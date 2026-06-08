@@ -206,7 +206,6 @@ if st.sidebar.button("🚪 Sair"):
     st.rerun()
 
 # DASHBOARD
-
 if menu == "Dashboard":
     st.subheader("📊 Visão Geral")
 
@@ -246,6 +245,43 @@ if menu == "Dashboard":
         conn,
         params=(hoje.strftime("%Y-%m-%d"),)
     )["total"].values[0]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("👥 Alunos", total_alunos)
+    col2.metric("💰 Receita do mês", f"R$ {receita_mes:.2f}")
+    col3.metric("⚠️ Inadimplentes", inadimplentes)
+
+    # GRÁFICO DE RECEITA MENSAL
+    st.markdown("---")
+    st.markdown("#### 📈 Receita dos últimos 6 meses")
+
+    grafico_query = """
+    SELECT
+        strftime('%Y-%m', data_pagamento) as mes,
+        SUM(valor) as total
+    FROM pagamentos
+    GROUP BY mes
+    ORDER BY mes DESC
+    LIMIT 6
+    """
+
+    grafico_df = pd.read_sql(grafico_query, conn)
+
+    if grafico_df.empty:
+        st.info("Nenhum pagamento registrado ainda.")
+    else:
+        # Inverte a ordem pra ficar do mais antigo pro mais recente
+        grafico_df = grafico_df.iloc[::-1].reset_index(drop=True)
+
+        # Formata o mês pra ficar mais legível (ex: 2026-06 → Jun/2026)
+        grafico_df["mes"] = pd.to_datetime(
+            grafico_df["mes"]
+        ).dt.strftime("%b/%Y")
+
+        # Define o mês como índice pro gráfico
+        grafico_df = grafico_df.set_index("mes")
+
+        st.bar_chart(grafico_df["total"])
 
 # CADASTRO
 
@@ -319,42 +355,52 @@ elif menu == "Registrar Pagamento":
 # LISTA
 
 # LISTA
+# LISTA
 elif menu == "Ver Alunos":
-    st.subheader("Lista de Alunos")
+    st.subheader("📋 Lista de Alunos")
 
-    df = pd.read_sql("SELECT * FROM alunos", conn)
+    aba1, aba2 = st.tabs(["📋 Lista", "✏️ Editar / Excluir"])
 
-    aba1, aba2 = st.tabs(["Lista", "✏️ Editar / Excluir"])
-
-    # ABA 1 — lista simples
+    # ABA 1 — lista com busca
     with aba1:
-        st.dataframe(df, use_container_width=True)
+        busca = st.text_input("🔍 Buscar por nome",
+                              placeholder="Digite o nome do aluno...")
+
+        if busca:
+            df = pd.read_sql(
+                "SELECT * FROM alunos WHERE nome LIKE ?",
+                conn,
+                params=(f"%{busca}%",)
+            )
+        else:
+            df = pd.read_sql("SELECT * FROM alunos", conn)
+
+        if df.empty:
+            st.warning("Nenhum aluno encontrado.")
+        else:
+            st.dataframe(df, use_container_width=True)
 
     # ABA 2 — editar e excluir
     with aba2:
-        if df.empty:
+        df_todos = pd.read_sql("SELECT * FROM alunos", conn)
+
+        if df_todos.empty:
             st.warning("Nenhum aluno cadastrado.")
         else:
-            # Selectbox com os nomes dos alunos
-            aluno_nome = st.selectbox("Selecione o aluno", df["nome"])
-
-            # Busca os dados atuais do aluno selecionado
-            aluno = df[df["nome"] == aluno_nome].iloc[0]
+            aluno_nome = st.selectbox("Selecione o aluno", df_todos["nome"])
+            aluno = df_todos[df_todos["nome"] == aluno_nome].iloc[0]
 
             st.markdown("#### Dados atuais")
 
-            # Formulário já preenchido com os dados do aluno
             with st.form("form_editar"):
                 novo_nome = st.text_input("Nome", value=aluno["nome"])
                 novo_telefone = st.text_input(
                     "Telefone", value=aluno["telefone"])
 
                 col1, col2 = st.columns(2)
-
                 salvar = col1.form_submit_button("💾 Salvar alterações")
                 excluir = col2.form_submit_button("🗑️ Excluir aluno")
 
-            # SALVAR
             if salvar:
                 if not novo_nome or not novo_telefone:
                     st.warning("Preencha todos os campos!")
@@ -367,7 +413,6 @@ elif menu == "Ver Alunos":
                     st.success(f"Aluno '{novo_nome}' atualizado com sucesso!")
                     st.rerun()
 
-            # EXCLUIR
             if excluir:
                 cursor.execute(
                     "DELETE FROM pagamentos WHERE aluno_id = ?",
