@@ -19,22 +19,75 @@ st.set_page_config(
     page_icon="🏋️",
     layout="wide"
 )
-# ESTILO CUSTOMIZADO (CSS)
 
+# ESTILO CUSTOMIZADO (CSS)
 st.markdown("""
 <style>
+/* Fundo geral */
 .main {
-    background-color: #f5f7fa;
+    background-color: #0d0d0d;
 }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #111111;
+    border-right: 2px solid #FF6B00;
+}
+
+/* Texto geral */
+html, body, [class*="css"] {
+    color: #f0f0f0;
+}
+
+/* Botões */
 .stButton>button {
-    background-color: #4CAF50;
+    background: linear-gradient(90deg, #FF6B00, #FF8C00);
     color: white;
     border-radius: 10px;
     height: 3em;
     width: 100%;
+    border: none;
+    font-weight: bold;
+    transition: 0.3s;
 }
+.stButton>button:hover {
+    background: linear-gradient(90deg, #FF8C00, #FFA500);
+    transform: scale(1.02);
+}
+
+/* Inputs */
 .stTextInput>div>div>input {
     border-radius: 10px;
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+    border: 1px solid #FF6B00;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab"] {
+    color: #FF6B00;
+}
+.stTabs [aria-selected="true"] {
+    border-bottom: 2px solid #FF6B00;
+}
+
+/* Métricas */
+[data-testid="metric-container"] {
+    background-color: #1a1a1a;
+    border: 1px solid #FF6B00;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border: 1px solid #FF6B00;
+    border-radius: 10px;
+}
+
+/* Divisor */
+hr {
+    border-color: #FF6B00;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -100,64 +153,67 @@ if cursor.fetchone() is None:
     conn.commit()
 
 # TÍTULO
-
-st.title("🏋️ Sistema de Gestão de Academia")
-st.markdown("---")
+st.sidebar.image("logo.jpg", use_container_width=True)
+st.markdown(
+    "<h1 style='text-align: center; color: #FF6B00; font-weight: bold;'>⚡ ENERGYM FIT</h1>",
+    unsafe_allow_html=True
+)
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # TELA DE LOGIN
 
 if "logado" not in st.session_state:
     st.session_state.logado = False
-st.markdown(
-    "<h1 style='text-align: center;'>Sistema de Gestão</h1>",
-    unsafe_allow_html=True
-)
+
 if not st.session_state.logado:
 
     st.markdown("""
-    <style>
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 80vh;
-    }
-
-    .login-box {
-        background: white;
-        padding: 40px;
-        border-radius: 20px;
-        box-shadow: 0px 10px 30px rgba(0,0,0,0.1);
-        width: 350px;
-    }
-
-    .login-title {
-        text-align: center;
-        font-size: 28px;
-        font-weight: bold;
-        margin-bottom: 20px;
-    }
-
-    .stTextInput input {
-        border-radius: 10px;
-        padding: 10px;
-    }
-
-    .stButton button {
-        background: linear-gradient(90deg, #4CAF50, #2e7d32);
-        color: white;
-        border-radius: 10px;
-        height: 45px;
-        font-weight: bold;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 80vh;
+}
+.login-box {
+    background: #1a1a1a;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0px 0px 30px rgba(255, 107, 0, 0.3);
+    width: 350px;
+    border: 1px solid #FF6B00;
+}
+.login-title {
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #FF6B00;
+}
+.stTextInput input {
+    border-radius: 10px;
+    background-color: #111111;
+    color: white;
+    border: 1px solid #FF6B00;
+}
+.stButton button {
+    background: linear-gradient(90deg, #FF6B00, #FF8C00);
+    color: white;
+    border-radius: 10px;
+    height: 45px;
+    font-weight: bold;
+    border: none;
+}
+</style>
+""", unsafe_allow_html=True)
 
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     st.markdown('<div class="login-box">', unsafe_allow_html=True)
 
-    st.markdown('<div class="login-title">🏋️ Login da Academia</div>',
-                unsafe_allow_html=True)
+    st.markdown(
+        "<div class='login-title'>⚡ ENERGYM FIT</div>",
+        unsafe_allow_html=True
+    )
 
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
@@ -188,7 +244,6 @@ if not st.session_state.logado:
 
 # MENU
 
-# MENU
 menu = st.sidebar.radio("Menu", [
     "Dashboard",
     "Cadastrar Aluno",
