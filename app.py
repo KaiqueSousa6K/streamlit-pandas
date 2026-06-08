@@ -188,13 +188,15 @@ if not st.session_state.logado:
 
 # MENU
 
+# MENU
 menu = st.sidebar.radio("Menu", [
     "Dashboard",
     "Cadastrar Aluno",
     "Registrar Pagamento",
     "Ver Alunos",
     "Histórico de Pagamentos",
-    "Inadimplentes"
+    "Inadimplentes",
+    "Alterar Senha"
 ])
 
 # BOTÃO DE LOGOUT
@@ -227,21 +229,23 @@ if menu == "Dashboard":
     receita_mes = pagamentos_mes["valor"].sum()
 
     hoje = datetime.now()
-    inadimplentes = 0
 
-    for _, row in pagamentos_df.iterrows():
-        vencimento = pd.to_datetime(row["proximo_vencimento"])
-        if vencimento < hoje:
-            inadimplentes += 1
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("👥 Alunos", total_alunos)
-    col2.metric(
-        "💰 Receita do mês",
-        f"R$ {receita_mes:.2f}"
+    inadimplentes_query = """
+    SELECT COUNT(*) as total
+    FROM (
+        SELECT a.id, MAX(p.proximo_vencimento) as ultimo_vencimento
+        FROM alunos a
+        LEFT JOIN pagamentos p ON a.id = p.aluno_id
+        GROUP BY a.id
     )
-    col3.metric("⚠️ Inadimplentes", inadimplentes)
+    WHERE ultimo_vencimento < ? OR ultimo_vencimento IS NULL
+    """
+
+    inadimplentes = pd.read_sql(
+        inadimplentes_query,
+        conn,
+        params=(hoje.strftime("%Y-%m-%d"),)
+    )["total"].values[0]
 
 # CADASTRO
 
@@ -486,3 +490,52 @@ elif menu == "Inadimplentes":
             st.success(f"🟢 {nome} - Em dia (vence em {dias_restantes} dias)")
 
         st.divider()
+
+# ALTERAR SENHA
+elif menu == "Alterar Senha":
+    st.subheader("🔒 Alterar Senha")
+
+    with st.form("form_senha"):
+        senha_atual = st.text_input("Senha atual", type="password")
+        nova_senha = st.text_input("Nova senha", type="password")
+        confirmar_senha = st.text_input(
+            "Confirmar nova senha", type="password")
+
+        salvar = st.form_submit_button("💾 Salvar nova senha")
+
+    if salvar:
+        # Verifica se algum campo tá vazio
+        if not senha_atual or not nova_senha or not confirmar_senha:
+            st.warning("Preencha todos os campos!")
+
+        # Verifica se a nova senha e a confirmação batem
+        elif nova_senha != confirmar_senha:
+            st.error("A nova senha e a confirmação não coincidem!")
+
+        # Verifica se a nova senha tem pelo menos 4 caracteres
+        elif len(nova_senha) < 4:
+            st.warning("A nova senha deve ter pelo menos 4 caracteres!")
+
+        else:
+            # Busca o usuário admin no banco
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE username = ?",
+                ("admin",)
+            )
+            user = cursor.fetchone()
+
+            # Verifica se a senha atual está correta
+            if not bcrypt.checkpw(senha_atual.encode('utf-8'), user[2]):
+                st.error("Senha atual incorreta!")
+            else:
+                # Gera o hash da nova senha e salva no banco
+                novo_hash = bcrypt.hashpw(
+                    nova_senha.encode('utf-8'),
+                    bcrypt.gensalt()
+                )
+                cursor.execute(
+                    "UPDATE usuarios SET senha = ? WHERE username = ?",
+                    (novo_hash, "admin")
+                )
+                conn.commit()
+                st.success("Senha alterada com sucesso!")
