@@ -57,9 +57,12 @@ html, body, [class*="css"] {
 
 /* Inputs */
 .stTextInput>div>div>input {
-    border-radius: 10px;
+    border-radius: 8px;
     background-color: #1a1a1a;
     color: #f0f0f0;
+    border: 1px solid #333333;
+}
+.stTextInput>div>div>input:focus {
     border: 1px solid #FF6B00;
 }
 
@@ -153,12 +156,11 @@ if cursor.fetchone() is None:
     conn.commit()
 
 # TÍTULO
-st.sidebar.image("logo.jpg", use_container_width=True)
-st.markdown(
-    "<h1 style='text-align: center; color: #FF6B00; font-weight: bold;'>⚡ ENERGYM FIT</h1>",
+
+st.sidebar.markdown(
+    "<h2 style='text-align: center; color: #FF6B00; font-weight: bold; padding: 20px 0;'>⚡ ENERGYM FIT</h2>",
     unsafe_allow_html=True
 )
-st.markdown("<hr>", unsafe_allow_html=True)
 
 # TELA DE LOGIN
 
@@ -167,78 +169,36 @@ if "logado" not in st.session_state:
 
 if not st.session_state.logado:
 
-    st.markdown("""
-<style>
-.login-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 80vh;
-}
-.login-box {
-    background: #1a1a1a;
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0px 0px 30px rgba(255, 107, 0, 0.3);
-    width: 350px;
-    border: 1px solid #FF6B00;
-}
-.login-title {
-    text-align: center;
-    font-size: 28px;
-    font-weight: bold;
-    margin-bottom: 20px;
-    color: #FF6B00;
-}
-.stTextInput input {
-    border-radius: 10px;
-    background-color: #111111;
-    color: white;
-    border: 1px solid #FF6B00;
-}
-.stButton button {
-    background: linear-gradient(90deg, #FF6B00, #FF8C00);
-    color: white;
-    border-radius: 10px;
-    height: 45px;
-    font-weight: bold;
-    border: none;
-}
-</style>
-""", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.2, 1])
 
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
-    st.markdown('<div class="login-box">', unsafe_allow_html=True)
+    with col2:
+        st.markdown("""
+            <div style='text-align: center; padding: 10px 0 30px 0;'>
+                <span style='font-size: 48px; font-weight: 900; color: #FF6B00;
+                letter-spacing: 3px;'>⚡ ENERGYM FIT</span><br>
+                <span style='font-size: 16px; color: #aaaaaa;'>Sistema de Gestão</span>
+            </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown(
-        "<div class='login-title'>⚡ ENERGYM FIT</div>",
-        unsafe_allow_html=True
-    )
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
 
-    usuario = st.text_input("Usuário")
-    senha = st.text_input("Senha", type="password")
+        if st.button("Entrar"):
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE username = ?",
+                (usuario,)
+            )
+            user = cursor.fetchone()
 
-    if st.button("Entrar"):
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE username = ?",
-            (usuario,)
-        )
-
-        user = cursor.fetchone()
-
-        if user and bcrypt.checkpw(
-            senha.encode('utf-8'),
-            user[2]
-        ):
-            st.session_state.logado = True
-            st.success("Login realizado!")
-            st.rerun()
-
-        else:
-            st.error("Usuário ou senha incorretos")
-
-            st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            if user and bcrypt.checkpw(
+                senha.encode('utf-8'),
+                user[2]
+            ):
+                st.session_state.logado = True
+                st.success("Login realizado!")
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos")
 
     st.stop()
 
@@ -409,8 +369,6 @@ elif menu == "Registrar Pagamento":
 
 # LISTA
 
-# LISTA
-# LISTA
 elif menu == "Ver Alunos":
     st.subheader("📋 Lista de Alunos")
 
