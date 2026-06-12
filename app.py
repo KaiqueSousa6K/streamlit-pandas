@@ -150,6 +150,42 @@ try:
 except:
     pass
 
+# Adiciona colunas novas na tabela alunos
+for coluna, tipo in [
+    ("data_nascimento", "TEXT"),
+    ("genero", "TEXT"),
+    ("peso", "TEXT"),
+    ("objetivo", "TEXT"),
+    ("historico_medico", "INTEGER DEFAULT 0"),
+    ("historico_medico_obs", "TEXT"),
+    ("medicamentos", "INTEGER DEFAULT 0"),
+    ("medicamentos_obs", "TEXT"),
+    ("condicionamento", "TEXT"),
+    ("condicionamento_obs", "TEXT"),
+]:
+    try:
+        cursor.execute(f"ALTER TABLE alunos ADD COLUMN {coluna} {tipo}")
+        conn.commit()
+    except:
+        pass
+
+# Tabela de medidas corporais
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS medidas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    aluno_id INTEGER,
+    data_medicao TEXT,
+    ombro REAL,
+    biceps REAL,
+    peito REAL,
+    cintura REAL,
+    quadriceps REAL,
+    gluteo REAL,
+    panturrilha REAL
+)
+""")
+conn.commit()
+
 # BANCO LOGIN
 
 cursor.execute("""
@@ -239,12 +275,13 @@ if not st.session_state.logado:
     st.stop()
 
 # MENU
-
 menu = st.sidebar.radio("Menu", [
     "Dashboard",
     "Cadastrar Aluno",
     "Registrar Pagamento",
     "Ver Alunos",
+    "Ficha do Aluno",
+    "Medidas Corporais",
     "Histórico de Pagamentos",
     "Inadimplentes",
     "Alterar Senha"
@@ -332,30 +369,81 @@ if menu == "Dashboard":
         # Define o mês como índice pro gráfico
         grafico_df = grafico_df.set_index("mes")
 
-        st.bar_chart(grafico_df["total"])
+        col_graf1, col_graf2, col_graf3 = st.columns([0.5, 3, 0.5])
+        with col_graf2:
+            st.bar_chart(grafico_df["total"], height=250)
 
 # CADASTRO
-
 elif menu == "Cadastrar Aluno":
     st.subheader("➕ Novo Aluno")
 
     with st.form("form_aluno"):
-        nome = st.text_input("Nome")
-        telefone = st.text_input("Telefone")
 
-        submit = st.form_submit_button("Cadastrar")
+        st.markdown("#### 👤 Informações Pessoais")
+        col1, col2 = st.columns(2)
+        nome = col1.text_input("Nome completo")
+        telefone = col2.text_input("Telefone")
 
-        if submit:
-            if not nome or not telefone:
-                st.warning("Preencha todos os campos!")
-            else:
-                data_inscricao = datetime.now().strftime("%Y-%m-%d")
-                cursor.execute(
-                    "INSERT INTO alunos (nome, telefone, data_inscricao) VALUES (?, ?, ?)",
-                    (nome, telefone, data_inscricao)
-                )
-                conn.commit()
-                st.success("Aluno cadastrado com sucesso!")
+        col3, col4, col5 = st.columns(3)
+        data_nascimento = col3.text_input(
+            "Data de nascimento",
+            placeholder="DD/MM/AAAA",
+            max_chars=10,
+            help="Formato: DD/MM/AAAA"
+        )
+        genero = col4.selectbox("Gênero", ["Masculino", "Feminino", "Outro"])
+        peso = col5.text_input("Peso (kg)", placeholder="Ex: 75.5")
+
+        objetivo = st.text_input(
+            "Objetivo", placeholder="Ex: Ganho de massa, emagrecimento...")
+
+        st.markdown("---")
+        st.markdown("#### 🏥 Informações de Saúde (Anamnese)")
+
+        col6, col7 = st.columns([1, 3])
+        historico_medico = col6.checkbox(
+            "Histórico médico? (diabetes, hipertensão, problemas cardíacos...)")
+        historico_medico_obs = col7.text_input(
+            "Observações do histórico médico", disabled=not historico_medico)
+
+        col8, col9 = st.columns([1, 3])
+        medicamentos = col8.checkbox("Uso de medicamentos controlados?")
+        medicamentos_obs = col9.text_input(
+            "Quais medicamentos?", disabled=not medicamentos)
+
+        condicionamento = st.selectbox(
+            "Nível de condicionamento físico atual",
+            ["Sedentário", "Iniciante", "Ativo", "Atleta"]
+        )
+        condicionamento_obs = st.text_input(
+            "Observações sobre condicionamento",
+            placeholder="Detalhes adicionais..."
+        )
+
+        submit = st.form_submit_button("✅ Cadastrar Aluno")
+
+    if submit:
+        if not nome or not telefone:
+            st.warning("Nome e telefone são obrigatórios!")
+        else:
+            data_inscricao = datetime.now().strftime("%Y-%m-%d")
+            cursor.execute("""
+                INSERT INTO alunos (
+                    nome, telefone, data_inscricao,
+                    data_nascimento, genero, peso, objetivo,
+                    historico_medico, historico_medico_obs,
+                    medicamentos, medicamentos_obs,
+                    condicionamento, condicionamento_obs
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                nome, telefone, data_inscricao,
+                data_nascimento, genero, peso, objetivo,
+                int(historico_medico), historico_medico_obs,
+                int(medicamentos), medicamentos_obs,
+                condicionamento, condicionamento_obs
+            ))
+            conn.commit()
+            st.success(f"Aluno '{nome}' cadastrado com sucesso!")
 
 # PAGAMENTO
 elif menu == "Registrar Pagamento":
@@ -487,26 +575,79 @@ elif menu == "Ver Alunos":
             aluno_nome = st.selectbox("Selecione o aluno", df_todos["nome"])
             aluno = df_todos[df_todos["nome"] == aluno_nome].iloc[0]
 
-            st.markdown("#### Dados atuais")
-
             with st.form("form_editar"):
-                novo_nome = st.text_input("Nome", value=aluno["nome"])
-                novo_telefone = st.text_input(
-                    "Telefone", value=aluno["telefone"])
-
+                st.markdown("#### 👤 Informações Pessoais")
                 col1, col2 = st.columns(2)
-                salvar = col1.form_submit_button("💾 Salvar alterações")
-                excluir = col2.form_submit_button("🗑️ Excluir aluno")
+                novo_nome = col1.text_input(
+                    "Nome", value=str(aluno["nome"] or ""))
+                novo_telefone = col2.text_input(
+                    "Telefone", value=str(aluno["telefone"] or ""))
+
+                col3, col4, col5 = st.columns(3)
+                novo_nascimento = col3.text_input(
+                    "Data de nascimento", value=str(aluno.get("data_nascimento") or ""))
+                novo_genero = col4.selectbox(
+                    "Gênero",
+                    ["Masculino", "Feminino", "Outro"],
+                    index=["Masculino", "Feminino",
+                           "Outro"].index(aluno["genero"])
+                    if aluno.get("genero") in ["Masculino", "Feminino", "Outro"] else 0
+                )
+                novo_peso = col5.text_input(
+                    "Peso (kg)", value=str(aluno.get("peso") or ""))
+                novo_objetivo = st.text_input(
+                    "Objetivo", value=str(aluno.get("objetivo") or ""))
+
+                st.markdown("---")
+                st.markdown("#### 🏥 Anamnese")
+
+                col6, col7 = st.columns([1, 3])
+                novo_hist = col6.checkbox(
+                    "Histórico médico?", value=bool(aluno.get("historico_medico")))
+                novo_hist_obs = col7.text_input("Observações histórico", value=str(
+                    aluno.get("historico_medico_obs") or ""))
+
+                col8, col9 = st.columns([1, 3])
+                novo_med = col8.checkbox(
+                    "Medicamentos controlados?", value=bool(aluno.get("medicamentos")))
+                novo_med_obs = col9.text_input(
+                    "Quais medicamentos?", value=str(aluno.get("medicamentos_obs") or ""))
+
+                novo_cond = st.selectbox(
+                    "Condicionamento físico",
+                    ["Sedentário", "Iniciante", "Ativo", "Atleta"],
+                    index=["Sedentário", "Iniciante", "Ativo",
+                           "Atleta"].index(aluno["condicionamento"])
+                    if aluno.get("condicionamento") in ["Sedentário", "Iniciante", "Ativo", "Atleta"] else 0
+                )
+                novo_cond_obs = st.text_input("Observações condicionamento", value=str(
+                    aluno.get("condicionamento_obs") or ""))
+
+                col_btn1, col_btn2 = st.columns(2)
+                salvar = col_btn1.form_submit_button("💾 Salvar alterações")
+                excluir = col_btn2.form_submit_button("🗑️ Excluir aluno")
 
             # SALVAR
             if salvar:
                 if not novo_nome or not novo_telefone:
-                    st.warning("Preencha todos os campos!")
+                    st.warning("Preencha nome e telefone!")
                 else:
-                    cursor.execute(
-                        "UPDATE alunos SET nome = ?, telefone = ? WHERE id = ?",
-                        (novo_nome, novo_telefone, int(aluno["id"]))
-                    )
+                    cursor.execute("""
+                        UPDATE alunos SET
+                            nome = ?, telefone = ?,
+                            data_nascimento = ?, genero = ?, peso = ?, objetivo = ?,
+                            historico_medico = ?, historico_medico_obs = ?,
+                            medicamentos = ?, medicamentos_obs = ?,
+                            condicionamento = ?, condicionamento_obs = ?
+                        WHERE id = ?
+                    """, (
+                        novo_nome, novo_telefone,
+                        novo_nascimento, novo_genero, novo_peso, novo_objetivo,
+                        int(novo_hist), novo_hist_obs,
+                        int(novo_med), novo_med_obs,
+                        novo_cond, novo_cond_obs,
+                        int(aluno["id"])
+                    ))
                     conn.commit()
                     st.success(f"Aluno '{novo_nome}' atualizado com sucesso!")
                     st.rerun()
@@ -527,13 +668,9 @@ elif menu == "Ver Alunos":
                 if col_sim.button("✅ Sim, excluir"):
                     aluno_id_excluir = st.session_state["aluno_para_excluir_id"]
                     cursor.execute(
-                        "DELETE FROM pagamentos WHERE aluno_id = ?",
-                        (aluno_id_excluir,)
-                    )
+                        "DELETE FROM pagamentos WHERE aluno_id = ?", (aluno_id_excluir,))
                     cursor.execute(
-                        "DELETE FROM alunos WHERE id = ?",
-                        (aluno_id_excluir,)
-                    )
+                        "DELETE FROM alunos WHERE id = ?", (aluno_id_excluir,))
                     conn.commit()
                     st.session_state["confirmando_exclusao"] = False
                     st.success(
@@ -544,7 +681,201 @@ elif menu == "Ver Alunos":
                     st.session_state["confirmando_exclusao"] = False
                     st.rerun()
 
+# FICHA DO ALUNO
+elif menu == "Ficha do Aluno":
+    st.subheader("📋 Ficha do Aluno")
+
+    alunos = pd.read_sql("SELECT * FROM alunos", conn)
+
+    if alunos.empty:
+        st.warning("Nenhum aluno cadastrado.")
+    else:
+        aluno_nome = st.selectbox("Selecione o aluno", alunos["nome"])
+        aluno = alunos[alunos["nome"] == aluno_nome].iloc[0]
+
+        st.markdown("---")
+
+        # INFORMAÇÕES PESSOAIS
+        st.markdown("#### 👤 Informações Pessoais")
+        col1, col2, col3 = st.columns(3)
+        col1.markdown(f"**Nome:** {aluno['nome']}")
+        col1.markdown(f"**Telefone:** {aluno['telefone']}")
+        # Calcula a idade
+        data_nasc_str = aluno.get('data_nascimento')
+        idade_texto = "—"
+        data_nasc_formatada = data_nasc_str or "—"
+
+        if data_nasc_str:
+            try:
+                # Remove tudo que não for número
+                numeros = ''.join(filter(str.isdigit, data_nasc_str))
+
+                # Tenta montar a data se tiver 8 dígitos
+                if len(numeros) == 8:
+                    data_nasc_str = f"{numeros[:2]}/{numeros[2:4]}/{numeros[4:8]}"
+                    data_nasc_formatada = data_nasc_str
+
+                data_nasc = datetime.strptime(data_nasc_str, "%d/%m/%Y")
+                hoje_calc = datetime.now()
+                idade = hoje_calc.year - data_nasc.year - (
+                    (hoje_calc.month, hoje_calc.day) < (
+                        data_nasc.month, data_nasc.day)
+                )
+                idade_texto = f"{idade} anos"
+            except:
+                idade_texto = "Data inválida"
+
+        col2.markdown(f"**Data de nascimento:** {data_nasc_formatada}")
+        col2.markdown(f"**Idade:** {idade_texto}")
+        col2.markdown(f"**Gênero:** {aluno.get('genero') or '—'}")
+
+        # INFORMAÇÕES DE SAÚDE
+        st.markdown("#### 🏥 Informações de Saúde (Anamnese)")
+
+        # Histórico médico
+        tem_hist = bool(aluno.get("historico_medico"))
+        st.markdown(
+            f"**Histórico médico:** {'✅ Sim' if tem_hist else '❌ Não'}")
+        if tem_hist and aluno.get("historico_medico_obs"):
+            st.info(f"📝 {aluno['historico_medico_obs']}")
+
+        # Medicamentos
+        tem_med = bool(aluno.get("medicamentos"))
+        st.markdown(
+            f"**Medicamentos controlados:** {'✅ Sim' if tem_med else '❌ Não'}")
+        if tem_med and aluno.get("medicamentos_obs"):
+            st.info(f"📝 {aluno['medicamentos_obs']}")
+
+        # Condicionamento
+        st.markdown(
+            f"**Condicionamento físico:** {aluno.get('condicionamento') or '—'}")
+        if aluno.get("condicionamento_obs"):
+            st.info(f"📝 {aluno['condicionamento_obs']}")
+
+        st.markdown("---")
+
+        # ÚLTIMA MEDIÇÃO
+        st.markdown("#### 📏 Última Medição Corporal")
+
+        ultima_medida = pd.read_sql("""
+            SELECT * FROM medidas
+            WHERE aluno_id = ?
+            ORDER BY data_medicao DESC
+            LIMIT 1
+        """, conn, params=(int(aluno["id"]),))
+
+        if ultima_medida.empty:
+            st.warning("Nenhuma medição registrada ainda.")
+        else:
+            m = ultima_medida.iloc[0]
+            st.caption(f"Registrada em: {m['data_medicao']}")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Ombro", f"{m['ombro']} cm")
+            col1.metric("Bíceps", f"{m['biceps']} cm")
+            col2.metric("Peito", f"{m['peito']} cm")
+            col2.metric("Cintura", f"{m['cintura']} cm")
+            col3.metric("Quadríceps", f"{m['quadriceps']} cm")
+            col3.metric("Glúteo", f"{m['gluteo']} cm")
+            col4.metric("Panturrilha", f"{m['panturrilha']} cm")
+
+# MEDIDAS CORPORAIS
+elif menu == "Medidas Corporais":
+    st.subheader("📏 Medidas Corporais")
+
+    alunos = pd.read_sql("SELECT * FROM alunos", conn)
+
+    if alunos.empty:
+        st.warning("Nenhum aluno cadastrado.")
+    else:
+        aluno_nome = st.selectbox("Selecione o aluno", alunos["nome"])
+        aluno_id = alunos[alunos["nome"] == aluno_nome]["id"].values[0]
+
+        aba1, aba2 = st.tabs(["📊 Histórico", "➕ Nova Medição"])
+
+        # ABA 1 — histórico de medições
+        with aba1:
+            historico_med = pd.read_sql("""
+                SELECT
+                    data_medicao AS "Data",
+                    ombro AS "Ombro (cm)",
+                    biceps AS "Bíceps (cm)",
+                    peito AS "Peito (cm)",
+                    cintura AS "Cintura (cm)",
+                    quadriceps AS "Quadríceps (cm)",
+                    gluteo AS "Glúteo (cm)",
+                    panturrilha AS "Panturrilha (cm)"
+                FROM medidas
+                WHERE aluno_id = ?
+                ORDER BY data_medicao DESC
+            """, conn, params=(int(aluno_id),))
+
+            if historico_med.empty:
+                st.warning("Nenhuma medição registrada ainda.")
+            else:
+                st.dataframe(historico_med, use_container_width=True)
+
+                # Gráfico de evolução da cintura como exemplo
+                st.markdown("---")
+                st.markdown("#### 📈 Evolução da Cintura")
+
+                evolucao = pd.read_sql("""
+                    SELECT data_medicao as data, cintura
+                    FROM medidas
+                    WHERE aluno_id = ?
+                    ORDER BY data_medicao ASC
+                """, conn, params=(int(aluno_id),))
+
+                if len(evolucao) > 1:
+                    evolucao = evolucao.set_index("data")
+                    st.line_chart(evolucao["cintura"])
+                else:
+                    st.info("Registre pelo menos 2 medições para ver a evolução.")
+
+        # ABA 2 — nova medição
+        with aba2:
+            with st.form("form_medidas"):
+                st.markdown("#### Insira as medidas em centímetros")
+
+                col1, col2, col3 = st.columns(3)
+                ombro = col1.number_input(
+                    "Ombro (cm)", min_value=0.0, step=0.1)
+                biceps = col2.number_input(
+                    "Bíceps (cm)", min_value=0.0, step=0.1)
+                peito = col3.number_input(
+                    "Peito (cm)", min_value=0.0, step=0.1)
+
+                col4, col5, col6 = st.columns(3)
+                cintura = col4.number_input(
+                    "Cintura (cm)", min_value=0.0, step=0.1)
+                quadriceps = col5.number_input(
+                    "Quadríceps (cm)", min_value=0.0, step=0.1)
+                gluteo = col6.number_input(
+                    "Glúteo (cm)", min_value=0.0, step=0.1)
+
+                panturrilha = st.number_input(
+                    "Panturrilha (cm)", min_value=0.0, step=0.1)
+
+                salvar_med = st.form_submit_button("💾 Salvar medições")
+
+            if salvar_med:
+                data_medicao = datetime.now().strftime("%Y-%m-%d")
+                cursor.execute("""
+                    INSERT INTO medidas (
+                        aluno_id, data_medicao,
+                        ombro, biceps, peito, cintura,
+                        quadriceps, gluteo, panturrilha
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    int(aluno_id), data_medicao,
+                    ombro, biceps, peito, cintura,
+                    quadriceps, gluteo, panturrilha
+                ))
+                conn.commit()
+                st.success("Medições salvas com sucesso!")
+                st.rerun()
+
 # HISTÓRICO DE PAGAMENTOS
+
 elif menu == "Histórico de Pagamentos":
     st.subheader("📜 Histórico de Pagamentos")
 
