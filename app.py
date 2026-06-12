@@ -703,18 +703,8 @@ elif menu == "Ficha do Aluno":
         # Calcula a idade
         data_nasc_str = aluno.get('data_nascimento')
         idade_texto = "—"
-        data_nasc_formatada = data_nasc_str or "—"
-
         if data_nasc_str:
             try:
-                # Remove tudo que não for número
-                numeros = ''.join(filter(str.isdigit, data_nasc_str))
-
-                # Tenta montar a data se tiver 8 dígitos
-                if len(numeros) == 8:
-                    data_nasc_str = f"{numeros[:2]}/{numeros[2:4]}/{numeros[4:8]}"
-                    data_nasc_formatada = data_nasc_str
-
                 data_nasc = datetime.strptime(data_nasc_str, "%d/%m/%Y")
                 hoje_calc = datetime.now()
                 idade = hoje_calc.year - data_nasc.year - (
@@ -725,9 +715,13 @@ elif menu == "Ficha do Aluno":
             except:
                 idade_texto = "Data inválida"
 
-        col2.markdown(f"**Data de nascimento:** {data_nasc_formatada}")
+        col2.markdown(f"**Data de nascimento:** {data_nasc_str or '—'}")
         col2.markdown(f"**Idade:** {idade_texto}")
         col2.markdown(f"**Gênero:** {aluno.get('genero') or '—'}")
+        col3.markdown(f"**Peso:** {aluno.get('peso') or '—'} kg")
+        col3.markdown(f"**Objetivo:** {aluno.get('objetivo') or '—'}")
+
+        st.markdown("---")
 
         # INFORMAÇÕES DE SAÚDE
         st.markdown("#### 🏥 Informações de Saúde (Anamnese)")
